@@ -1,25 +1,112 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Assignment 2"
+author: "Patrick"
+date: "9/2/2019"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+Install the Tidyverse
 
+We begin by installing packages for easy data frame and date manipulation.
+```{r installer, warning=FALSE, message=FALSE}
+library("tidyverse")
+library("lubridate")
+```
+##Loading and preprocessing the data
 
+###1. Load the data (i.e. read.csv()) 
 
-## What is mean total number of steps taken per day?
+Reference the Github pages containing the activity.zip file.  The URL comes directly from 
+[Dr. Peng's github repo](https://github.com/rdpeng/RepData_PeerAssessment1/blob/master/activity.zip) related to this assignment.
 
+```{r loader}
+datasource <-"https://github.com/rdpeng/RepData_PeerAssessment1/raw/master/activity.zip"
+temp <- tempfile()
+download.file(datasource, temp, mode = "wb")
+unzip(temp, "activity.csv")
+activity<-read.csv("activity.csv")
+```
 
+###2. Process/transform the data into a format suitable for your analysis
 
-## What is the average daily activity pattern?
+Use functions native to lubridate to cast activity date to a date from a factor.
+```{r preprocess}
+activity$date <- ymd(activity$date)
+activity$weekday <- wday(activity$date, label = T)
+activity$year <- year(activity$date)
+activity$month <- month(activity$date)
+activity$day <- day(activity$date)
+activity$week<-week(activity$date)
+activity$weekend<-as.factor(ifelse(activity$weekday %in% c("Sat", "Sun"), "weekend", "weekday"))
+```
 
+##What is mean total number of steps taken per day?
 
+###1. Make a histogram of the total number of steps taken each day
+```{r report}
+hist(activity$steps,  breaks=20, col="gray", xlab="Time Interval", main="Frequency of Steps by Interval")
+```
 
-## Imputing missing values
+###2. Calculate and report the mean and median total number of steps taken per day
 
+ We see in our summary below that the **mean** number of steps is **`r round(mean(activity$steps, na.rm = T))`** and the **median** is **`r median(activity$steps, na.rm = T)`**.
 
+```{r summarize}
+summary(activity)
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+##What is the average daily activity pattern?
+
+###1. Make a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r timeseries}
+activity %>%
+  group_by(interval) %>%
+  summarise(avgstep = mean(steps, na.rm = T)) %>%
+  ggplot(., aes(x = interval, y = avgstep)) + geom_line(stat = "identity") +
+  ggtitle("Average Steps by Interval")
+```
+
+###2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r maxinterval}
+activity %>%
+  group_by(interval) %>%
+  summarise(avgstep = mean(steps, na.rm = T)) %>%
+  arrange(desc(avgstep)) %>%
+  head(., n = 1)
+```
+
+##Perform Mean Imputation on Missing Values
+###1. Calculate and report the total number of missing values in the dataset
+```{r narows}
+sum(is.na(activity$steps))
+```
+###2. Create a new dataset using mean imputation
+```{r imputate}
+imputed.activity<-activity %>%
+  group_by(interval) %>%
+  mutate(steps = replace(steps, is.na(steps), mean(steps, na.rm=T)))
+```
+###3. Create a historgram and report the new mean/median of dataset with imputed values.
+We observe there is no difference in the mean or median of the imputed dataset compared to the original.
+```{r imputed summarize}
+hist(imputed.activity$steps)
+mean(imputed.activity$steps)
+median(imputed.activity$steps)
+summary(imputed.activity)
+```
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+###1. Visualize new weekdays variable.
+```{r weekend facet}
+imputed.activity %>%
+  group_by(interval, weekend) %>%
+  summarise(avgstep = mean(steps, na.rm = T)) %>%
+  ggplot(., aes(x = interval, y = avgstep, group=weekend)) + geom_line(stat = "identity") +
+  facet_grid(weekend ~.) +
+  ggtitle("Average Steps by Interval by Weekday")
+```
